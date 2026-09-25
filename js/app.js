@@ -1,12 +1,12 @@
 /* Kinetic CRE Network — front end.
  * Public site + member portal. The portal runs in DEMO MODE: sign-in, forum
  * posts, RSVPs and photo uploads are saved in this browser's localStorage.
+ * Passcodes are checked against salted hashes in data.js — a deterrent, not real security.
  * Swap the `store` + `auth` helpers for a real backend (e.g. Supabase) to go live.
  */
 (() => {
   const K = window.KINETIC;
   const app = document.getElementById("app");
-  const DEMO_PASSCODE = "kinetic";
 
   /* ---------- helpers ---------- */
   const esc = (s = "") => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -53,6 +53,15 @@
       catch { toast("Storage is full on this device — try a smaller photo."); return false; }
     }
   };
+
+  async function sha256(text) {
+    const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+    return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, "0")).join("");
+  }
+  async function checkPasscode(name, pass) {
+    const want = K.passHashes[name];
+    return !!want && (await sha256(`${K.passSalt}:${pass.trim().toLowerCase()}`)) === want;
+  }
 
   const auth = {
     user: () => store.get("user", null),
@@ -417,15 +426,15 @@
           </label>
           <label>Passcode<input type="password" name="pass" required autocomplete="current-password" /></label>
           <button class="btn btn-orange btn-lg btn-block">Sign in</button>
-          <p class="demo-note">Demo mode · passcode is <code>${DEMO_PASSCODE}</code></p>
+          <p class="demo-note">Your passcode is your last name plus 4 digits. Lost it? Ask the Kinetic team.</p>
         </form>
         <a class="back" href="#/">← Back to site</a>
       </div>
     </main>`;
-    $("#loginForm").addEventListener("submit", e => {
+    $("#loginForm").addEventListener("submit", async e => {
       e.preventDefault();
       const f = new FormData(e.target);
-      if (f.get("pass").trim().toLowerCase() !== DEMO_PASSCODE) { toast("That passcode didn't work."); return; }
+      if (!(await checkPasscode(f.get("name"), f.get("pass")))) { toast("That passcode didn't work."); return; }
       auth.signIn(f.get("name"));
       toast(`Welcome back, ${f.get("name").split(" ")[0]} 👋`);
       route();

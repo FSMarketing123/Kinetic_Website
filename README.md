@@ -31,4 +31,4 @@ Then open http://localhost:5173.
 
 ## Status
 
-The portal runs in **demo mode**: sign-in uses the passcode `kinetic`, and posts, RSVPs, photos and documents are saved only in the visitor's browser. Going live needs member accounts, a shared database and file storage (Supabase recommended). Events and testimonials in `js/data.js` are placeholders.
+The portal runs in **demo mode**: each member signs in with a personal passcode (last name + 4 digits; only salted hashes are in `js/data.js`, the plain list is kept out of the repo), and posts, RSVPs, photos and documents are saved only in the visitor's browser. Going live needs member accounts, a shared database and file storage (Supabase recommended). Events and testimonials in `js/data.js` are placeholders.
