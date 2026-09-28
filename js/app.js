@@ -152,10 +152,15 @@
   const logo = (cls = "") => `<a href="#/" class="logo ${cls}" aria-label="Kinetic home"><img src="assets/kinetic-logo.png?v=3" alt="Kinetic — CRE in Motion" /></a>`;
   const chevrons = `<div class="chevrons" aria-hidden="true">${Array.from({ length: 7 }, (_, i) => `<span style="--i:${i}"></span>`).join("")}</div>`;
 
+  const isAdmin = name => (K.admins || []).includes(name);
+  // Legacy uploads used a `public` flag; everything now goes through admin approval.
+  const photoStatus = p => p.status || "pending";
+  const approvedPhotos = () => getPhotos().filter(p => photoStatus(p) === "approved").sort((a, b) => (b.approvedAt || 0) - (a.approvedAt || 0));
   function publicGallery() {
-    const shared = getPhotos().filter(p => p.public).map(p => ({ src: p.src, caption: p.caption || p.event }));
-    return [...K.gallery, ...shared];
+    const approved = approvedPhotos().map(p => ({ src: p.src, caption: `${p.event} · ${p.by.split(" ")[0]}` }));
+    return [...approved, ...K.gallery];
   }
+  let carouselTimer = null;
 
   /* =========================================================
      PUBLIC SITE
@@ -251,7 +256,7 @@
                 "<b>Market knowledge sharing.</b>",
                 "<b>Give &amp; get industry news</b> — retail expansion, market disruptors, ideas to make the group better.",
                 "<b>Show up focused</b> at quarterly meetings."] },
-              { tone: "navy", kicker: "Member privileges", title: "What you get", icon: `<svg viewBox="0 0 24 24"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></svg>`, items: [
+              { tone: "lime", kicker: "Member privileges", title: "What you get", icon: `<svg viewBox="0 0 24 24"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></svg>`, items: [
                 "Exclusive relationships with like-minded young CRE pros.",
                 "Market intel across the US — and one day, internationally.",
                 "Our exclusive <b>RECON</b> event.",
@@ -294,23 +299,29 @@
       <div class="wrap">
         <div class="sec-head">
           <div><p class="kicker light">On the calendar</p><h2>Upcoming events</h2></div>
-          <p class="sec-sub">Quarterly meetups in member markets plus our signature RECON experience. Members RSVP in the portal.</p>
+          <p class="sec-sub">Quarterly meetups in member markets plus our signature RECON experience.</p>
         </div>
         <div class="event-list">
           ${upcoming.length ? upcoming.map(e => `
-            <article class="event ${e.type === "Signature" ? "signature" : ""}">
+            <article class="event teaser ${e.type === "Signature" ? "signature" : ""}">
               <div class="e-date"><span>${fmtMonth(e.date)}</span><b>${fmtDay(e.date)}</b></div>
               <div class="e-body">
                 <p class="e-type">${esc(e.type)}</p>
                 <h3>${esc(e.title)}</h3>
-                <p class="e-meta">${esc(e.city)} · ${esc(e.venue)} · ${esc(e.time)}</p>
-                <p class="e-blurb">${esc(e.blurb)}</p>
+                <p class="e-meta">${esc(e.city)}</p>
               </div>
-              <div class="e-actions">
-                <a class="btn btn-orange" href="#/portal/events">RSVP</a>
-                <button class="btn btn-line" data-ics="${e.id}">+ Calendar</button>
-              </div>
+              <span class="e-lock" aria-label="Details for members only"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg> Members only</span>
             </article>`).join("") : `<p class="empty">New dates coming soon.</p>`}
+        </div>
+        <div class="events-cta">
+          <div>
+            <h3>Want the details and a seat at the table?</h3>
+            <p>Venues, times, RSVPs and calendar invites are for members. Join us today to see more and get access to every event.</p>
+          </div>
+          <div class="events-cta-btns">
+            <a class="btn btn-orange btn-lg" href="#/join">Join us today</a>
+            <a class="btn btn-line btn-lg" href="#/portal">Member login</a>
+          </div>
         </div>
       </div>
     </section>
@@ -319,11 +330,14 @@
       <div class="wrap">
         <div class="sec-head">
           <div><p class="kicker">Receipts</p><h2>Past events</h2></div>
-          <p class="sec-sub">Dinners, deal talk, and RECON nights. Members can add their own shots from the portal.</p>
+          <p class="sec-sub">Dinners, deal talk, and RECON nights.</p>
         </div>
-        <div class="masonry">
-          ${gallery.map((g, i) => `<button class="tile" data-lb="${i}"><img src="${g.src}" alt="${esc(g.caption)}" loading="lazy" /><span>${esc(g.caption)}</span></button>`).join("")}
-          <a class="tile tile-cta" href="#/portal/photos"><b>+</b><span>Members: add your photos</span></a>
+        <div class="carousel" aria-roledescription="carousel" aria-label="Past event photos">
+          <div class="car-track" tabindex="0">
+            ${gallery.map((g, i) => `<button class="slide" data-lb="${i}" aria-label="Photo ${i + 1} of ${gallery.length}: ${esc(g.caption)}"><img src="${g.src}" alt="${esc(g.caption)}" loading="lazy" /><span>${esc(g.caption)}</span></button>`).join("")}
+          </div>
+          ${gallery.length > 1 ? `<button class="car-btn car-prev" aria-label="Previous photo">‹</button><button class="car-btn car-next" aria-label="Next photo">›</button>
+          <div class="car-dots">${gallery.map((_, i) => `<button class="${i ? "" : "on"}" data-dot="${i}" aria-label="Go to photo ${i + 1}"></button>`).join("")}</div>` : ""}
         </div>
       </div>
     </section>
@@ -384,8 +398,8 @@
       burger.classList.toggle("open", open);
     });
     $$(".mobile-menu a").forEach(a => a.addEventListener("click", () => { menu.hidden = true; burger.classList.remove("open"); }));
-    $$("[data-ics]").forEach(b => b.addEventListener("click", () => downloadIcs(K.events.find(e => e.id === b.dataset.ics))));
     $$("[data-lb]").forEach(b => b.addEventListener("click", () => openLightbox(gallery, +b.dataset.lb)));
+    setupCarousel();
     $("#contactForm").addEventListener("submit", e => {
       e.preventDefault();
       e.target.reset();
@@ -404,6 +418,38 @@
       const target = document.getElementById(section);
       if (target) requestAnimationFrame(() => target.scrollIntoView({ behavior: "smooth" }));
     } else window.scrollTo(0, 0);
+  }
+
+  function setupCarousel() {
+    const track = $(".car-track"); if (!track) return;
+    const slides = $$(".slide", track), dots = $$("[data-dot]");
+    const step = () => slides[0].getBoundingClientRect().width + parseFloat(getComputedStyle(track).columnGap || 0);
+    const current = () => Math.round(track.scrollLeft / step());
+    const go = i => {
+      const max = track.scrollWidth - track.clientWidth;
+      track.scrollTo({ left: Math.min(max, Math.max(0, i) * step()), behavior: "smooth" });
+    };
+    const next = () => {
+      const atEnd = track.scrollLeft >= track.scrollWidth - track.clientWidth - 4;
+      go(atEnd ? 0 : current() + 1);
+    };
+    $(".car-next")?.addEventListener("click", () => { next(); restart(); });
+    $(".car-prev")?.addEventListener("click", () => { go(current() - 1); restart(); });
+    dots.forEach(d => d.addEventListener("click", () => { go(+d.dataset.dot); restart(); }));
+    track.addEventListener("scroll", () => {
+      const i = Math.min(dots.length - 1, current());
+      dots.forEach((d, j) => d.classList.toggle("on", j === i));
+    }, { passive: true });
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    let paused = false;
+    const restart = () => {
+      clearInterval(carouselTimer);
+      if (!reduce && slides.length > 1) carouselTimer = setInterval(() => { if (!paused && !document.hidden) next(); }, 4500);
+    };
+    const car = $(".carousel");
+    ["mouseenter", "focusin", "touchstart"].forEach(t => car.addEventListener(t, () => { paused = true; }, { passive: true }));
+    ["mouseleave", "focusout", "touchend"].forEach(t => car.addEventListener(t, () => { paused = false; }, { passive: true }));
+    restart();
   }
 
   /* =========================================================
@@ -454,10 +500,21 @@
   const BELL_ICON = `<svg viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/></svg>`;
   function getNotifs(me) {
     const seen = store.get("notifSeen", {})[me] || 0;
-    return getPosts()
+    const replies = getPosts()
       .filter(p => p.author === me)
-      .flatMap(p => p.comments.filter(c => c.author !== me).map(c => ({ post: p, c, unread: c.createdAt > seen })))
-      .sort((a, b) => b.c.createdAt - a.c.createdAt)
+      .flatMap(p => p.comments.filter(c => c.author !== me).map(c => ({
+        href: `#/portal/post/${p.id}`, who: c.author, at: c.createdAt,
+        html: `<b>${esc(c.author)}</b> replied to <b>${esc(p.title)}</b>`, snip: c.body })));
+    const photos = getPhotos();
+    const approvals = photos.filter(p => p.by === me && photoStatus(p) === "approved" && p.approvedBy && p.approvedBy !== me).map(p => ({
+      href: "#/", who: p.approvedBy, at: p.approvedAt,
+      html: `<b>${esc(p.approvedBy)}</b> approved your photo. It's on the homepage now`, snip: p.event }));
+    const queue = isAdmin(me) ? photos.filter(p => photoStatus(p) === "pending" && p.by !== me).map(p => ({
+      href: "#/portal/photos", who: p.by, at: p.createdAt,
+      html: `<b>${esc(p.by)}</b> uploaded a photo for your approval`, snip: p.event })) : [];
+    return [...replies, ...approvals, ...queue]
+      .map(x => ({ ...x, unread: x.at > seen }))
+      .sort((a, b) => b.at - a.at)
       .slice(0, 30);
   }
   function markNotifsSeen(me) {
@@ -479,12 +536,12 @@
       <div class="notif-head"><b>Notifications</b>${items.some(x => x.unread) ? `<button class="link" data-markread>Mark all read</button>` : ""}</div>
       <div class="notif-list">
         ${items.map(x => `
-          <a class="notif ${x.unread ? "unread" : ""}" href="#/portal/post/${x.post.id}">
-            ${avatar(x.c.author, "sm")}
-            <div><p><b>${esc(x.c.author)}</b> replied to <b>${esc(x.post.title)}</b></p>
-              <p class="notif-snip">${esc(x.c.body)}</p>
-              <p class="notif-ago">${timeAgo(x.c.createdAt)}</p></div>
-          </a>`).join("") || `<p class="empty">No notifications yet. When someone replies to your posts, you'll see it here.</p>`}
+          <a class="notif ${x.unread ? "unread" : ""}" href="${x.href}">
+            ${avatar(x.who, "sm")}
+            <div><p>${x.html}</p>
+              <p class="notif-snip">${esc(x.snip)}</p>
+              <p class="notif-ago">${timeAgo(x.at)}</p></div>
+          </a>`).join("") || `<p class="empty">No notifications yet. Replies to your posts and photo approvals show up here.</p>`}
       </div>`;
     document.body.appendChild(panel);
     panel.addEventListener("click", e => {
@@ -498,6 +555,12 @@
   });
   document.addEventListener("keydown", e => { if (e.key === "Escape") closeBellPanel(); });
 
+  function tabCount(id) {
+    if (id !== "photos" || !isAdmin(auth.user().name)) return "";
+    const n = getPhotos().filter(p => photoStatus(p) === "pending").length;
+    return n ? `<span class="tab-count" aria-label="${n} awaiting approval">${n}</span>` : "";
+  }
+
   function portalShell(active, inner, { title } = {}) {
     const user = auth.user();
     closeBellPanel();
@@ -505,7 +568,7 @@
     <div class="portal">
       <aside class="side">
         <div class="side-top">${logo()}${bellButton()}</div>
-        <nav>${TABS.map(t => `<a href="#/portal/${t.id}" class="${t.id === active ? "on" : ""}">${t.icon}<span>${t.label}</span></a>`).join("")}</nav>
+        <nav>${TABS.map(t => `<a href="#/portal/${t.id}" class="${t.id === active ? "on" : ""}">${t.icon}<span>${t.label}</span>${tabCount(t.id)}</a>`).join("")}</nav>
         <a class="side-back" href="#/">← Public site</a>
       </aside>
       <header class="p-top">
@@ -514,7 +577,7 @@
         <div class="p-me">${bellButton()}<a href="#/portal/me" aria-label="Me">${avatar(user.name, "sm")}</a></div>
       </header>
       <main class="p-main">${inner}</main>
-      <nav class="tabbar">${TABS.filter(t => t.id !== "me").map(t => `<a href="#/portal/${t.id}" class="${t.id === active ? "on" : ""}">${t.icon}<span>${t.label}</span></a>`).join("")}</nav>
+      <nav class="tabbar">${TABS.filter(t => t.id !== "me").map(t => `<a href="#/portal/${t.id}" class="${t.id === active ? "on" : ""}">${t.icon}<span>${t.label}</span>${tabCount(t.id)}</a>`).join("")}</nav>
     </div>`;
   }
 
@@ -735,16 +798,61 @@
     }));
   }
 
-  /* ----- photos ----- */
+  /* ----- photos: members upload, the admin approves into the homepage carousel ----- */
+  const STATUS_LABEL = { pending: "Awaiting approval", approved: "On the homepage", declined: "Not approved" };
+
+  function setPhotoStatus(id, status) {
+    const me = auth.user().name;
+    store.set("photos", getPhotos().map(p => p.id !== id ? p
+      : { ...p, status, approvedBy: status === "approved" ? me : undefined, approvedAt: status === "approved" ? Date.now() : undefined }));
+  }
+
   function renderPhotos() {
-    const photos = getPhotos(), me = auth.user().name;
-    const items = [...photos.map(p => ({ src: p.src, caption: `${p.event} · ${p.by}` })), ...K.gallery];
+    const me = auth.user().name, admin = isAdmin(me);
+    const photos = getPhotos();
+    const pending = photos.filter(p => photoStatus(p) === "pending");
+    const approved = approvedPhotos();
+    const mine = photos.filter(p => p.by === me);
+    const album = [...approved.map(p => ({ src: p.src, caption: `${p.event} · ${p.by}` })), ...K.gallery];
+    const lbSets = {};
+    const tile = (p, set, i, extra = "") => `<div class="tile">
+        <button class="tile-btn" data-lbset="${set}" data-lb="${i}"><img src="${p.src}" alt="" loading="lazy" /></button>
+        ${extra}</div>`;
+
+    const reviewQueue = admin ? `
+      <section class="review">
+        <div class="review-head">
+          <div><p class="kicker">Admin</p><h2 class="h-sm">Review queue <span class="muted">${pending.length}</span></h2></div>
+          <p class="muted">Approve a photo to put it in the homepage carousel right away.</p>
+        </div>
+        ${pending.length ? `<div class="review-grid">${pending.map((p, i) => `
+          <div class="review-card">
+            <button class="tile-btn" data-lbset="queue" data-lb="${i}"><img src="${p.src}" alt="" /></button>
+            <div class="rc-body">
+              <p class="rc-who">${avatar(p.by, "xs")}<b>${esc(p.by)}</b></p>
+              <p class="rc-meta">${esc(p.event)} · ${timeAgo(p.createdAt)}</p>
+              <div class="rc-actions">
+                <button class="btn btn-orange btn-sm" data-approve="${p.id}">✓ Approve</button>
+                <button class="btn btn-line btn-sm" data-decline="${p.id}">Decline</button>
+              </div>
+            </div>
+          </div>`).join("")}</div>` : `<p class="empty">All caught up. New uploads will land here.</p>`}
+        ${approved.length ? `<h3 class="h-xs">On the homepage now <span class="muted">${approved.length}</span></h3>
+          <div class="masonry small">${approved.map((p, i) => tile(p, "live", i,
+            `<span>${esc(p.by.split(" ")[0])} · ${esc(p.event)}</span><button class="unfeature" data-unfeature="${p.id}">Remove</button>`)).join("")}</div>` : ""}
+      </section>` : "";
+    lbSets.queue = pending.map(p => ({ src: p.src, caption: `${p.event} · ${p.by}` }));
+    lbSets.live = approved.map(p => ({ src: p.src, caption: `${p.event} · ${p.by}` }));
+    lbSets.mine = mine.map(p => ({ src: p.src, caption: `${p.event} · ${STATUS_LABEL[photoStatus(p)]}` }));
+    lbSets.album = album;
+
     app.innerHTML = portalShell("photos", `
+      ${reviewQueue}
       <form class="upload" id="uploadForm">
         <label class="drop">
           <input type="file" accept="image/*" multiple name="files" hidden />
           <b>📸 Drop your event pics</b>
-          <span>Tap to choose photos from your camera roll</span>
+          <span>${admin ? "Your uploads go straight to the homepage carousel" : "Abby reviews each photo, then approved ones go straight to the homepage"}</span>
         </label>
         <div class="upload-opts" hidden>
           <div class="previews"></div>
@@ -754,26 +862,25 @@
               <option>Other / Hangout</option>
             </select>
           </label>
-          <label class="toggle"><input type="checkbox" name="public" checked /><span></span> Feature on the public gallery</label>
-          <button class="btn btn-orange btn-block">Upload</button>
+          <button class="btn btn-orange btn-block">${admin ? "Upload & publish" : "Send for approval"}</button>
         </div>
       </form>
-      <h2 class="h-sm">Member album <span class="muted">${items.length}</span></h2>
+      ${mine.length && !admin ? `<h2 class="h-sm">My uploads <span class="muted">${mine.length}</span></h2>
+        <div class="masonry small">${mine.map((p, i) => tile(p, "mine", i,
+          `<span class="st st-${photoStatus(p)}">${STATUS_LABEL[photoStatus(p)]}</span><button class="del" data-del="${p.id}" aria-label="Delete photo">✕</button>`)).join("")}</div>` : ""}
+      <h2 class="h-sm">Member album <span class="muted">${album.length}</span></h2>
       <div class="masonry small">
-        ${items.map((g, i) => {
-          const own = i < photos.length && photos[i].by === me;
-          return `<div class="tile"><button class="tile-btn" data-lb="${i}"><img src="${g.src}" alt="" loading="lazy" /></button><span>${esc(g.caption)}</span>${own ? `<button class="del" data-del="${photos[i].id}" aria-label="Delete photo">✕</button>` : ""}</div>`;
-        }).join("")}
+        ${album.map((g, i) => tile(g, "album", i, `<span>${esc(g.caption)}</span>`)).join("")}
       </div>
     `);
 
-    let pending = [];
+    let staged = [];
     const input = $("input[type=file]", app), opts = $(".upload-opts");
     const drop = $(".drop");
     const handle = async files => {
-      pending = await Promise.all([...files].filter(f => f.type.startsWith("image/")).slice(0, 8).map(f => resizeImage(f)));
-      $(".previews").innerHTML = pending.map(s => `<img src="${s}" alt="" />`).join("");
-      opts.hidden = !pending.length;
+      staged = await Promise.all([...files].filter(f => f.type.startsWith("image/")).slice(0, 8).map(f => resizeImage(f)));
+      $(".previews").innerHTML = staged.map(src => `<img src="${src}" alt="" />`).join("");
+      opts.hidden = !staged.length;
     };
     input.addEventListener("change", () => handle(input.files));
     ["dragover", "dragenter"].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.add("hover"); }));
@@ -782,11 +889,22 @@
 
     $("#uploadForm").addEventListener("submit", e => {
       e.preventDefault();
-      const f = new FormData(e.target);
-      const add = pending.map((src, i) => ({ id: Date.now().toString(36) + i, src, event: f.get("event"), by: me, public: !!f.get("public"), createdAt: Date.now() }));
-      if (store.set("photos", [...add, ...getPhotos()])) { toast(`${add.length} photo${add.length > 1 ? "s" : ""} added 🙌`); renderPhotos(); }
+      const f = new FormData(e.target), now = Date.now();
+      const add = staged.map((src, i) => ({
+        id: now.toString(36) + i, src, event: f.get("event"), by: me, createdAt: now,
+        ...(admin ? { status: "approved", approvedBy: me, approvedAt: now } : { status: "pending" }) }));
+      if (!store.set("photos", [...add, ...getPhotos()])) return;
+      const n = `${add.length} photo${add.length > 1 ? "s" : ""}`;
+      toast(admin ? `${n} published to the homepage 🎉` : `${n} sent to Abby for approval 🙌`);
+      renderPhotos();
     });
-    $$("[data-lb]").forEach(b => b.addEventListener("click", () => openLightbox(items, +b.dataset.lb)));
+    $$("[data-lb]").forEach(b => b.addEventListener("click", () => openLightbox(lbSets[b.dataset.lbset], +b.dataset.lb)));
+    $$("[data-approve]").forEach(b => b.addEventListener("click", () => { setPhotoStatus(b.dataset.approve, "approved"); toast("Approved. It's live on the homepage ✨"); renderPhotos(); }));
+    $$("[data-decline]").forEach(b => b.addEventListener("click", () => { setPhotoStatus(b.dataset.decline, "declined"); toast("Photo declined"); renderPhotos(); }));
+    $$("[data-unfeature]").forEach(b => b.addEventListener("click", () => {
+      if (!confirm("Remove this photo from the homepage? It goes back to the review queue.")) return;
+      setPhotoStatus(b.dataset.unfeature, "pending"); renderPhotos();
+    }));
     $$("[data-del]").forEach(b => b.addEventListener("click", () => {
       if (!confirm("Remove this photo?")) return;
       store.set("photos", getPhotos().filter(p => p.id !== b.dataset.del));
@@ -946,6 +1064,7 @@
         ${chevrons}
         ${avatar(me, "xl")}
         <h2>${esc(me)}</h2>
+        ${isAdmin(me) ? `<span class="admin-pill">Admin · approves photos</span>` : ""}
         <p>${m ? `${esc(m.firm)} · ${esc(m.city)}` : ""}</p>
         <div class="me-stats"><div><b>${posts}</b><span>Posts</span></div><div><b>${going}</b><span>RSVPs</span></div><div><b>${photos}</b><span>Photos</span></div></div>
       </div>
@@ -963,6 +1082,7 @@
 
   /* ---------- router ---------- */
   function route() {
+    clearInterval(carouselTimer);
     const h = location.hash.replace(/^#\/?/, "");
     const [root, sub, id] = h.split("/");
     window.onscroll = null;

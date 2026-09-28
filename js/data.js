@@ -6,7 +6,7 @@ window.KINETIC = {
   members: [
     { name: "Abby Walsh",          firm: "Franklin Street",           city: "Jacksonville, FL", photo: "abby-walsh",          linkedin: "https://www.linkedin.com/in/abby-walsh-mba-9b7111a8/" },
     { name: "Benjamin Weiner",     firm: "Ripco",                     city: "Brooklyn, NY",     photo: "benjamin-weiner",     linkedin: "https://www.linkedin.com/in/benjamin-weiner-161a2989/" },
-    { name: "Jessica Branch",      firm: "Franklin Street",           city: "Atlanta, GA",      photo: "jessica-branch",      linkedin: "https://www.linkedin.com/in/jessica-ann-branch/" },
+    { name: "Jessica Branch",      firm: "Simon Property Group",      city: "Atlanta, GA",      photo: "jessica-branch",      linkedin: "https://www.linkedin.com/in/jessica-ann-branch/" },
     { name: "John Bassi",          firm: "Canvas Real Estate",        city: "Chicago, IL",      photo: "john-bassi",          linkedin: "https://www.linkedin.com/in/john-bassi-521138a0/" },
     { name: "Laura Harness",       firm: "Midway",                    city: "Houston, TX",      photo: "laura-harness",       linkedin: "https://www.linkedin.com/in/harnesslaura/" },
     { name: "Lindsay Zegans",      firm: "Ripco",                     city: "New York, NY",     photo: "lindsay-zegans",      linkedin: "https://www.linkedin.com/in/lindsayzegans/" },
@@ -23,6 +23,9 @@ window.KINETIC = {
     { name: "Tyson Youngs",        firm: "Main + Main Inc",           city: "San Diego, CA",    photo: "tyson-youngs",        linkedin: "https://www.linkedin.com/in/tyson-youngs-801245109/" },
     { name: "David Garbuz",        firm: "Oberfeld Snowcap",          city: "Toronto, Canada",  photo: "david-garbuz",        linkedin: "https://www.linkedin.com/in/david-garbuz-60908360/" }
   ],
+
+  // Admins approve member photos before they appear in the homepage carousel.
+  admins: ["Abby Walsh"],
 
   // Member sign-in: SHA-256 of "<salt>:<passcode lowercased>". Plain passcodes live in member-passcodes.csv (not committed).
   passSalt: "a908b5b159a6ac79",
