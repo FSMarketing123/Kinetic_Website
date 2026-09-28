@@ -450,19 +450,68 @@
     { id: "me",     label: "Me",     icon: `<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4.2 4.2-6.5 8-6.5s7 2.3 8 6.5"/></svg>` }
   ];
 
+  /* ----- notifications: replies from other members on your posts ----- */
+  const BELL_ICON = `<svg viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/></svg>`;
+  function getNotifs(me) {
+    const seen = store.get("notifSeen", {})[me] || 0;
+    return getPosts()
+      .filter(p => p.author === me)
+      .flatMap(p => p.comments.filter(c => c.author !== me).map(c => ({ post: p, c, unread: c.createdAt > seen })))
+      .sort((a, b) => b.c.createdAt - a.c.createdAt)
+      .slice(0, 30);
+  }
+  function markNotifsSeen(me) {
+    const all = store.get("notifSeen", {});
+    all[me] = Date.now();
+    store.set("notifSeen", all);
+  }
+  function bellButton() {
+    const n = getNotifs(auth.user().name).filter(x => x.unread).length;
+    return `<button class="bell" aria-label="Notifications${n ? ` (${n} new)` : ""}">${BELL_ICON}${n ? `<span class="bell-badge">${n > 9 ? "9+" : n}</span>` : ""}</button>`;
+  }
+  function closeBellPanel() { $(".notif-panel")?.remove(); }
+  function openBellPanel() {
+    const me = auth.user().name;
+    const items = getNotifs(me);
+    const panel = document.createElement("div");
+    panel.className = "notif-panel";
+    panel.innerHTML = `
+      <div class="notif-head"><b>Notifications</b>${items.some(x => x.unread) ? `<button class="link" data-markread>Mark all read</button>` : ""}</div>
+      <div class="notif-list">
+        ${items.map(x => `
+          <a class="notif ${x.unread ? "unread" : ""}" href="#/portal/post/${x.post.id}">
+            ${avatar(x.c.author, "sm")}
+            <div><p><b>${esc(x.c.author)}</b> replied to <b>${esc(x.post.title)}</b></p>
+              <p class="notif-snip">${esc(x.c.body)}</p>
+              <p class="notif-ago">${timeAgo(x.c.createdAt)}</p></div>
+          </a>`).join("") || `<p class="empty">No notifications yet. When someone replies to your posts, you'll see it here.</p>`}
+      </div>`;
+    document.body.appendChild(panel);
+    panel.addEventListener("click", e => {
+      if (e.target.closest("[data-markread]")) { markNotifsSeen(me); closeBellPanel(); route(); return; }
+      if (e.target.closest(".notif")) { markNotifsSeen(me); closeBellPanel(); }
+    });
+  }
+  document.addEventListener("click", e => {
+    if (e.target.closest(".bell")) { $(".notif-panel") ? closeBellPanel() : openBellPanel(); return; }
+    if ($(".notif-panel") && !e.target.closest(".notif-panel")) closeBellPanel();
+  });
+  document.addEventListener("keydown", e => { if (e.key === "Escape") closeBellPanel(); });
+
   function portalShell(active, inner, { title } = {}) {
     const user = auth.user();
+    closeBellPanel();
     return `
     <div class="portal">
       <aside class="side">
-        ${logo()}
+        <div class="side-top">${logo()}${bellButton()}</div>
         <nav>${TABS.map(t => `<a href="#/portal/${t.id}" class="${t.id === active ? "on" : ""}">${t.icon}<span>${t.label}</span></a>`).join("")}</nav>
         <a class="side-back" href="#/">← Public site</a>
       </aside>
       <header class="p-top">
         ${logo("logo-sm")}
         <span class="p-title">${esc(title || TABS.find(t => t.id === active)?.label || "")}</span>
-        <a href="#/portal/me" class="p-me">${avatar(user.name, "sm")}</a>
+        <div class="p-me">${bellButton()}<a href="#/portal/me" aria-label="Me">${avatar(user.name, "sm")}</a></div>
       </header>
       <main class="p-main">${inner}</main>
       <nav class="tabbar">${TABS.filter(t => t.id !== "me").map(t => `<a href="#/portal/${t.id}" class="${t.id === active ? "on" : ""}">${t.icon}<span>${t.label}</span></a>`).join("")}</nav>
