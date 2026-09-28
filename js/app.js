@@ -482,6 +482,7 @@
       const f = new FormData(e.target);
       if (!(await checkPasscode(f.get("name"), f.get("pass")))) { toast("That passcode didn't work."); return; }
       auth.signIn(f.get("name"));
+      docState.folder = "all"; docState.q = "";
       toast(`Welcome back, ${f.get("name").split(" ")[0]} 👋`);
       route();
     });
@@ -512,7 +513,10 @@
     const queue = isAdmin(me) ? photos.filter(p => photoStatus(p) === "pending" && p.by !== me).map(p => ({
       href: "#/portal/photos", who: p.by, at: p.createdAt,
       html: `<b>${esc(p.by)}</b> uploaded a photo for your approval`, snip: p.event })) : [];
-    return [...replies, ...approvals, ...queue]
+    const shares = getDocs().filter(d => d.access === "people" && d.by !== me && (d.sharedWith || {})[me]).map(d => ({
+      href: `#/portal/docs/${d.id}`, who: d.by, at: d.sharedWith[me],
+      html: `<b>${esc(d.by)}</b> shared <b>${esc(d.title)}</b> with you`, snip: d.folder }));
+    return [...replies, ...approvals, ...queue, ...shares]
       .map(x => ({ ...x, unread: x.at > seen }))
       .sort((a, b) => b.at - a.at)
       .slice(0, 30);
@@ -933,9 +937,33 @@
     return ext.length <= 4 ? ext : "FILE";
   }
 
-  function renderDocs() {
+  // Access: "all" = every member; "people" = the owner plus d.sharedWith (name -> time shared).
+  const canSee = (d, me) => d.access !== "people" || d.by === me || !!(d.sharedWith || {})[me];
+  const docLink = id => `${location.origin}${location.pathname}#/portal/docs/${id}`;
+  const LOCK_ICON = `<svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>`;
+  const GLOBE_ICON = `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/></svg>`;
+  const SHARE_ICON = `<svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="m8.2 10.8 7.6-4.4M8.2 13.2l7.6 4.4"/></svg>`;
+
+  function accessTag(d) {
+    if (d.access !== "people") return `<span class="d-access">${GLOBE_ICON}All members</span>`;
+    const names = Object.keys(d.sharedWith || {});
+    return `<span class="d-access private">${LOCK_ICON}${names.length ? `<span class="stack">${names.slice(0, 3).map(n => avatar(n, "xs")).join("")}</span>${names.length} ${names.length === 1 ? "person" : "people"}` : "Only you"}</span>`;
+  }
+
+  async function copyText(text) {
+    try { await navigator.clipboard.writeText(text); return true; }
+    catch {
+      const t = document.createElement("textarea"); t.value = text; document.body.appendChild(t); t.select();
+      let ok = false; try { ok = document.execCommand("copy"); } catch {} t.remove(); return ok;
+    }
+  }
+
+  function renderDocs(focusId) {
     const me = auth.user().name;
-    const docs = getDocs();
+    const allDocs = getDocs();
+    const docs = allDocs.filter(d => canSee(d, me));
+    const focus = focusId ? allDocs.find(d => d.id === focusId) : null;
+    if (focus && canSee(focus, me)) { docState.folder = "all"; docState.q = ""; }
     const q = docState.q.toLowerCase();
     const list = docs
       .filter(d => docState.folder === "all" || d.folder === docState.folder)
@@ -951,6 +979,8 @@
           <button class="btn btn-line" data-add="link">🔗 Add link</button>
         </div>
       </div>
+      ${focusId && !focus ? `<div class="doc-notice">This document was removed, or the link is incomplete.</div>` : ""}
+      ${focus && !canSee(focus, me) ? `<div class="doc-notice">${LOCK_ICON}<span>You don't have access to <b>${esc(focus.title)}</b>. Ask ${esc(focus.by)} to share it with you.</span></div>` : ""}
       <input class="search" id="docSearch" placeholder="Search documents" value="${esc(docState.q)}" />
       <div class="chips doc-folders">
         <button class="chip ${docState.folder === "all" ? "on" : ""}" data-folder="all">All <span>${docs.length}</span></button>
@@ -959,12 +989,14 @@
       <div class="docs">
         ${list.map(d => {
           const t = docType(d), prov = d.kind === "link" ? linkProvider(d.url) : null;
-          return `<div class="doc">
+          return `<div class="doc ${d.id === focusId ? "focus" : ""}" id="doc-${d.id}">
             <span class="d-type t-${t === "LIVE" ? prov.tag : t.toLowerCase()}">${t === "LIVE" ? (prov.tag === "ms" ? "365" : prov.tag === "g" ? "G" : "DB") : esc(t)}</span>
             <div class="d-main">
               <a class="d-title" href="${d.kind === "link" ? esc(d.url) : d.src}" ${d.kind === "link" ? `target="_blank" rel="noopener"` : `download="${esc(d.name)}"`}>${esc(d.title)}</a>
               <p class="d-meta">${prov && prov.tag !== "web" ? `<span class="live">● Co-edit in ${prov.name}</span>` : ""}${esc(d.folder)} · ${esc(d.by.split(" ")[0])} · ${timeAgo(d.createdAt)}${d.size ? ` · ${fmtSize(d.size)}` : ""}</p>
+              ${accessTag(d)}
             </div>
+            <button class="d-share" data-share="${d.id}" aria-label="Share ${esc(d.title)}">${SHARE_ICON}</button>
             <a class="d-open" href="${d.kind === "link" ? esc(d.url) : d.src}" ${d.kind === "link" ? `target="_blank" rel="noopener"` : `download="${esc(d.name)}"`} aria-label="${d.kind === "link" ? "Open" : "Download"}">${d.kind === "link" ? "↗" : "⬇"}</a>
             ${d.by === me ? `<button class="d-del" data-del="${d.id}" aria-label="Delete">✕</button>` : ""}
           </div>`;
@@ -974,6 +1006,8 @@
 
     $$("[data-folder]").forEach(b => b.addEventListener("click", () => { docState.folder = b.dataset.folder; renderDocs(); }));
     $$("[data-add]").forEach(b => b.addEventListener("click", () => openDocSheet(b.dataset.add)));
+    $$("[data-share]").forEach(b => b.addEventListener("click", () => openShareSheet(b.dataset.share)));
+    if (focus && canSee(focus, me)) requestAnimationFrame(() => $(`#doc-${focus.id}`)?.scrollIntoView({ block: "center", behavior: "smooth" }));
     const s = $("#docSearch");
     s.addEventListener("input", () => { docState.q = s.value; const pos = s.selectionStart; renderDocs(); const n = $("#docSearch"); n.focus(); n.setSelectionRange(pos, pos); });
     $$("[data-del]").forEach(b => b.addEventListener("click", () => {
@@ -998,6 +1032,12 @@
           : `<label class="drop small"><input type="file" name="file" required hidden /><b>📄 Choose a file</b><span class="file-name">PDF, Word, Excel, PowerPoint, images · up to 3 MB in demo</span></label>`}
         <label>Title<input name="title" ${isLink ? "required" : ""} maxlength="120" placeholder="${isLink ? "e.g. 2027 Market Outlook deck" : "Defaults to the file name"}" /></label>
         <label>Folder<select name="folder">${K.docFolders.map(f => `<option ${f === folder ? "selected" : ""}>${esc(f)}</option>`).join("")}</select></label>
+        <label>Who can see it
+          <select name="access">
+            <option value="all">All Kinetic members</option>
+            <option value="people">Only people I choose</option>
+          </select>
+        </label>
       </form>`;
     document.body.appendChild(sheet);
     document.body.classList.add("no-scroll");
@@ -1014,7 +1054,7 @@
     $("#docForm").addEventListener("submit", async e => {
       e.preventDefault();
       const f = new FormData(e.target);
-      const base = { id: "d" + Date.now().toString(36), folder: f.get("folder"), by: auth.user().name, createdAt: Date.now() };
+      const base = { id: "d" + Date.now().toString(36), folder: f.get("folder"), by: auth.user().name, createdAt: Date.now(), access: f.get("access"), sharedWith: {} };
       let doc;
       if (isLink) {
         const url = f.get("url").trim();
@@ -1029,9 +1069,80 @@
       if (!store.set("docs", [doc, ...getDocs()])) return;
       close();
       docState.folder = doc.folder;
-      toast(isLink ? "Link shared 🔗" : "File uploaded 📄");
       renderDocs();
+      if (doc.access === "people") setTimeout(() => openShareSheet(doc.id), 260);
+      else toast(isLink ? "Link added for all members 🔗" : "File shared with all members 📄");
     });
+  }
+
+  function openShareSheet(id) {
+    const me = auth.user().name;
+    const doc = getDocs().find(d => d.id === id);
+    if (!doc) return;
+    const owner = doc.by === me;
+    let access = doc.access === "people" ? "people" : "all";
+    const picked = new Set(Object.keys(doc.sharedWith || {}));
+    const others = K.members.filter(m => m.name !== doc.by);
+
+    const sheet = document.createElement("div");
+    sheet.className = "sheet-wrap";
+    document.body.appendChild(sheet);
+    document.body.classList.add("no-scroll");
+    const close = () => { sheet.classList.remove("open"); document.body.classList.remove("no-scroll"); setTimeout(() => sheet.remove(), 250); };
+    let q = "";
+
+    const peopleList = () => others
+      .filter(m => !q || (m.name + m.firm + m.city).toLowerCase().includes(q))
+      .map(m => `<label class="pick"><input type="checkbox" value="${esc(m.name)}" ${picked.has(m.name) ? "checked" : ""} />
+        <img src="${photoUrl(m)}" alt="" /><span><b>${esc(m.name)}</b><small>${esc(m.firm)}</small></span><i></i></label>`).join("") || `<p class="empty">No one matches.</p>`;
+
+    const draw = () => {
+      sheet.innerHTML = `
+        <div class="sheet share-sheet">
+          <div class="sheet-head"><button type="button" class="link" data-close>${owner ? "Cancel" : "Close"}</button><b>Share</b>${owner ? `<button class="btn btn-orange btn-sm" data-save>Save</button>` : "<span></span>"}</div>
+          <p class="share-title">${esc(doc.title)}</p>
+          ${owner ? `
+            <div class="seg share-seg">
+              <button type="button" class="${access === "all" ? "on" : ""}" data-access="all">${GLOBE_ICON} All members</button>
+              <button type="button" class="${access === "people" ? "on" : ""}" data-access="people">${LOCK_ICON} Specific people</button>
+            </div>
+            ${access === "people" ? `
+              <div class="picked">${[...picked].map(n => `<span class="chip on">${esc(n.split(" ")[0])} <button type="button" data-unpick="${esc(n)}" aria-label="Remove ${esc(n)}">✕</button></span>`).join("") || `<span class="muted">Pick who can see this document.</span>`}</div>
+              <input class="search" id="pickSearch" placeholder="Add people by name, firm or city" value="${esc(q)}" />
+              <div class="pick-list">${peopleList()}</div>` : `<p class="hint">Everyone in the Kinetic portal can see and open this document.</p>`}`
+          : `<div class="share-who">${accessTag(doc)} <span class="muted">· shared by ${esc(doc.by)}</span></div>`}
+          <div class="link-row">
+            <input readonly value="${esc(docLink(doc.id))}" aria-label="Link to this document" />
+            <button type="button" class="btn btn-line btn-sm" data-copy>Copy link</button>
+          </div>
+          <p class="hint">${access === "people" ? "The link only works for people you've added. Others will be told to ask you for access." : "Anyone in the Kinetic portal can use this link after signing in."}</p>
+        </div>`;
+      requestAnimationFrame(() => sheet.classList.add("open"));
+      $$("[data-access]", sheet).forEach(b => b.addEventListener("click", () => { access = b.dataset.access; draw(); }));
+      $$(".pick input", sheet).forEach(c => c.addEventListener("change", () => { c.checked ? picked.add(c.value) : picked.delete(c.value); drawPicked(); }));
+      $$("[data-unpick]", sheet).forEach(b => b.addEventListener("click", () => { picked.delete(b.dataset.unpick); draw(); }));
+      const ps = $("#pickSearch", sheet);
+      ps?.addEventListener("input", () => { q = ps.value.toLowerCase(); $(".pick-list", sheet).innerHTML = peopleList();
+        $$(".pick input", sheet).forEach(c => c.addEventListener("change", () => { c.checked ? picked.add(c.value) : picked.delete(c.value); drawPicked(); })); });
+      $("[data-copy]", sheet).addEventListener("click", async () => { toast((await copyText(docLink(doc.id))) ? "Link copied 📋" : "Couldn't copy. Select the link and copy it"); });
+      $("[data-save]", sheet)?.addEventListener("click", save);
+    };
+    const drawPicked = () => {
+      const box = $(".picked", sheet); if (!box) return;
+      box.innerHTML = [...picked].map(n => `<span class="chip on">${esc(n.split(" ")[0])} <button type="button" data-unpick="${esc(n)}" aria-label="Remove ${esc(n)}">✕</button></span>`).join("") || `<span class="muted">Pick who can see this document.</span>`;
+      $$("[data-unpick]", box).forEach(b => b.addEventListener("click", () => { picked.delete(b.dataset.unpick); draw(); }));
+    };
+    const save = () => {
+      const prev = doc.sharedWith || {}, now = Date.now();
+      const sharedWith = access === "people" ? Object.fromEntries([...picked].map(n => [n, prev[n] || now])) : {};
+      store.set("docs", getDocs().map(d => d.id === id ? { ...d, access, sharedWith } : d));
+      const added = [...picked].filter(n => !prev[n]).length;
+      close();
+      toast(access === "all" ? "Shared with all members" : added ? `Shared with ${added} ${added === 1 ? "person" : "people"} 🔒` : "Sharing updated");
+      renderDocs();
+    };
+    sheet.addEventListener("click", e => { if (e.target === sheet || e.target.closest("[data-close]")) close(); });
+    draw();
   }
 
   /* ----- people ----- */
@@ -1095,7 +1206,7 @@
       case "events": return renderPortalEvents();
       case "photos": return renderPhotos();
       case "people": return renderPeople();
-      case "docs": return renderDocs();
+      case "docs": return renderDocs(id);
       case "me": return renderMe();
       default: return renderFeed();
     }
