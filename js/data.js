@@ -18,7 +18,7 @@ window.KINETIC = {
     { name: "John Bassi", firm: "Canvas Real Estate", city: "Chicago, IL", photo: "john-bassi", linkedin: "https://www.linkedin.com/in/john-bassi-521138a0/" },
     { name: "Marc Huberman", firm: "Odyssey Retail Advisors", city: "Los Angeles, CA", photo: "marc-huberman-2026", linkedin: "https://www.linkedin.com/in/marc-huberman-3bb57642/" },
     { name: "Sarah Schank", firm: "Katz Retail", city: "Charleston, SC", photo: "sarah-schank", linkedin: "https://www.linkedin.com/in/sarah-schank-ccim-6b5271126/" },
-    { name: "Isabella Sorrentino", firm: "ROI, CRE", city: "Las Vegas, NV", photo: "isabella-sorrentino", linkedin: "https://www.linkedin.com/in/isabellasorrentino/" },
+    { name: "Isabella Sorrentino", firm: "ROI, CRE", city: "Las Vegas, NV", photo: "isabella-sorrentino-2026", linkedin: "https://www.linkedin.com/in/isabellasorrentino/" },
     { name: "Benjamin Weiner", firm: "Ripco", city: "Brooklyn, NY", photo: "benjamin-weiner", linkedin: "https://www.linkedin.com/in/benjamin-weiner-161a2989/" },
     { name: "Jessica Branch", firm: "Simon Property Group", city: "Atlanta, GA", photo: "jessica-branch-2026b", linkedin: "https://www.linkedin.com/in/jessica-ann-branch/" },
     { name: "Tyson Youngs", firm: "Main + Main Inc", city: "San Diego, CA", photo: "tyson-youngs-2026", linkedin: "https://www.linkedin.com/in/tyson-youngs-801245109/" },
