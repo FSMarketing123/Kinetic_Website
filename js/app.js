@@ -15,11 +15,15 @@
   const slug = s => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
   const initials = n => n.split(/\s+/).map(w => w[0]).slice(0, 2).join("").toUpperCase();
   const memberByName = n => K.members.find(m => m.name === n);
-  const photoUrl = m => `assets/members/${m.photo}.jpg`;
+  const photoUrl = m => m.photo ? `assets/members/${m.photo}.jpg` : null;
+  const photoOrInitials = (m, cls = "") => m.photo
+    ? `<img class="${cls}" src="${photoUrl(m)}" alt="" loading="lazy" />`
+    : `<span class="${cls} initials" aria-hidden="true">${initials(m.name)}</span>`;
   const parseDate = d => new Date(d + "T12:00:00");
   const fmtMonth = d => parseDate(d).toLocaleString("en-US", { month: "short" });
   const fmtDay = d => parseDate(d).getDate();
   const fmtLong = d => parseDate(d).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+  const dateTile = e => `<div class="e-date${e.dayTbd ? " tbd" : ""}"><span>${fmtMonth(e.date)}</span><b>${e.dayTbd ? parseDate(e.date).getFullYear() : fmtDay(e.date)}</b></div>`;
   const timeAgo = ts => {
     const s = Math.max(1, (Date.now() - ts) / 1000);
     if (s < 60) return "just now";
@@ -30,7 +34,7 @@
 
   function avatar(name, size = "") {
     const m = memberByName(name);
-    if (m) return `<img class="av ${size}" src="${photoUrl(m)}" alt="" loading="lazy" />`;
+    if (m && m.photo) return `<img class="av ${size}" src="${photoUrl(m)}" alt="" loading="lazy" />`;
     return `<span class="av av-txt ${size}">${name === "Kinetic Team" ? "K" : esc(initials(name))}</span>`;
   }
 
@@ -54,19 +58,39 @@
     }
   };
 
-  async function sha256(text) {
-    const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
-    return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, "0")).join("");
+  /* Member directory: contact info is encrypted in directory.js. A member's passcode
+     unwraps the group key (PBKDF2 → AES-GCM); a wrong passcode simply fails to decrypt.
+     The unwrapped key stays on this device so contacts load without re-entering it. */
+  const D = window.KINETIC_DIRECTORY;
+  const fromB64 = t => Uint8Array.from(atob(t), c => c.charCodeAt(0));
+  const toB64 = bytes => btoa(String.fromCharCode(...new Uint8Array(bytes)));
+  let directory = null;
+  async function unlockWithPasscode(name, pass) {
+    const wrapped = D.keyring[name];
+    if (!wrapped) return null;
+    const enc = new TextEncoder();
+    const base = await crypto.subtle.importKey("raw", enc.encode(pass.trim().toLowerCase()), "PBKDF2", false, ["deriveKey"]);
+    const kek = await crypto.subtle.deriveKey({ name: "PBKDF2", hash: "SHA-256", salt: enc.encode(`${D.salt}:${name}`), iterations: D.iterations },
+      base, { name: "AES-GCM", length: 256 }, false, ["decrypt"]);
+    try { return new Uint8Array(await crypto.subtle.decrypt({ name: "AES-GCM", iv: fromB64(wrapped.iv) }, kek, fromB64(wrapped.ct))); }
+    catch { return null; }
   }
-  async function checkPasscode(name, pass) {
-    const want = K.passHashes[name];
-    return !!want && (await sha256(`${K.passSalt}:${pass.trim().toLowerCase()}`)) === want;
+  async function loadDirectory() {
+    if (directory) return directory;
+    const raw = store.get("gk", null);
+    if (!raw) return null;
+    try {
+      const key = await crypto.subtle.importKey("raw", fromB64(raw), "AES-GCM", false, ["decrypt"]);
+      const plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv: fromB64(D.directory.iv) }, key, fromB64(D.directory.ct));
+      directory = JSON.parse(new TextDecoder().decode(plain));
+    } catch { directory = null; }
+    return directory;
   }
 
   const auth = {
     user: () => store.get("user", null),
     signIn: name => store.set("user", { name }),
-    signOut: () => { try { localStorage.removeItem("kin_user"); } catch {} }
+    signOut: () => { directory = null; try { localStorage.removeItem("kin_user"); localStorage.removeItem("kin_gk"); } catch {} }
   };
 
   function getPosts() {
@@ -199,16 +223,15 @@
       <div class="hero-inner">
         <p class="eyebrow"><span class="dot"></span> CRE in motion</p>
         <h1>The next generation of <em>commercial real estate</em> is already moving.</h1>
-        <p class="lede">Kinetic is a network of driven, up-and-coming retail CRE brokers representing America's highest-growth markets.</p>
+        <p class="lede">Kinetic is a network of driven, up-and-coming retail CRE brokers representing North America's highest-growth markets.</p>
         <div class="hero-ctas">
           <a class="btn btn-orange btn-lg" href="#/join">Apply to join</a>
           <a class="btn btn-line btn-lg" href="#/members">Meet the members</a>
         </div>
         <dl class="stats">
-          <div><dt>${K.members.length}</dt><dd>Members</dd></div>
-          <div><dt>${cities.length}</dt><dd>Markets</dd></div>
-          <div><dt>4</dt><dd>Events / yr</dd></div>
-          <div><dt>1</dt><dd>RECON</dd></div>
+          <div><dt>${K.stats.members}</dt><dd>Members</dd></div>
+          <div><dt>${K.stats.markets}</dt><dd>High-growth markets</dd></div>
+          <div><dt>${K.stats.eventsPerYear}</dt><dd>Events per year</dd></div>
         </dl>
       </div>
     </section>
@@ -222,12 +245,12 @@
         <div class="about-intro">
           <p class="kicker">About us</p>
           <h2>Energy in motion.</h2>
-          <p class="about-lede">Kinetic is a network of up-and-coming, driven young commercial real estate brokers representing America's highest-growth markets. <span>Together, we're shaping tomorrow's markets.</span></p>
+          <p class="about-lede">Kinetic is a network of up-and-coming, driven commercial real estate brokers representing North America's highest-growth markets. <span>Together, we're shaping tomorrow's markets.</span></p>
         </div>
         <div class="pillars">
           ${[
-            { verb: "energizes us", title: "Shared passion", copy: "A tight crew of like-minded young brokers who actually want to see each other win.", icon: `<svg viewBox="0 0 24 24"><path d="M13 2 4.5 13.5H11L10 22l8.5-11.5H12z"/></svg>` },
-            { verb: "fuels us", title: "Knowledge", copy: "Market intel across the US — retail expansion, disruptors, and deal flow from every member city.", icon: `<svg viewBox="0 0 24 24"><path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z"/><path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z"/><path d="M15 13a4.5 4.5 0 0 1-3-4 4.5 4.5 0 0 1-3 4"/><path d="M17.599 6.5a3 3 0 0 0 .399-1.375M6.003 5.125A3 3 0 0 0 6.401 6.5M3.477 10.896a4 4 0 0 1 .585-.396M19.938 10.5a4 4 0 0 1 .585.396M6 18a4 4 0 0 1-1.967-.516M19.967 17.484A4 4 0 0 1 18 18"/></svg>` },
+            { verb: "energizes us", title: "Shared passion", copy: "A tight crew of like-minded brokers who actually want to see each other win.", icon: `<svg viewBox="0 0 24 24"><path d="M13 2 4.5 13.5H11L10 22l8.5-11.5H12z"/></svg>` },
+            { verb: "fuels us", title: "Knowledge", copy: "Market intel across the US and Canada: retail expansion, disruptors, and deal flow from every member city.", icon: `<svg viewBox="0 0 24 24"><path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z"/><path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z"/><path d="M15 13a4.5 4.5 0 0 1-3-4 4.5 4.5 0 0 1-3 4"/><path d="M17.599 6.5a3 3 0 0 0 .399-1.375M6.003 5.125A3 3 0 0 0 6.401 6.5M3.477 10.896a4 4 0 0 1 .585-.396M19.938 10.5a4 4 0 0 1 .585.396M6 18a4 4 0 0 1-1.967-.516M19.967 17.484A4 4 0 0 1 18 18"/></svg>` },
             { verb: "strengthen us", title: "Relationships", copy: "A boutique bench of broker contacts in the markets your clients are moving into next.", icon: `<svg viewBox="0 0 24 24"><circle cx="8.5" cy="12" r="5.5"/><circle cx="15.5" cy="12" r="5.5"/></svg>` }
           ].map((p, i) => `
             ${i ? `<span class="p-arrow" aria-hidden="true"><i></i><i></i></span>` : ""}
@@ -250,15 +273,14 @@
               { tone: "orange", kicker: "Your energy investment", title: "What it takes", icon: `<svg viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1M9 12.5l2 2 4-4"/></svg>`, items: [
                 "<b>Attendance is your compensation.</b> Attend 3 of 4 events per year.",
                 "<b>3+ years</b> of retail CRE experience.",
-                "<b>Under 35.</b>",
                 "<b>Boutique firms</b> — not part of another national broker network."] },
               { tone: "teal", kicker: "Your responsibility", title: "What you bring", icon: `<svg viewBox="0 0 24 24"><path d="M4 13v6a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-6M16 7l-4-4-4 4M12 3v12"/></svg>`, items: [
                 "<b>Market knowledge sharing.</b>",
                 "<b>Give &amp; get industry news</b> — retail expansion, market disruptors, ideas to make the group better.",
                 "<b>Show up focused</b> at quarterly meetings."] },
               { tone: "lime", kicker: "Member privileges", title: "What you get", icon: `<svg viewBox="0 0 24 24"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></svg>`, items: [
-                "Exclusive relationships with like-minded young CRE pros.",
-                "Market intel across the US — and one day, internationally.",
+                "Exclusive relationships with like-minded CRE pros.",
+                "Market intel across the US and internationally, starting with Toronto.",
                 "Our exclusive <b>RECON</b> event.",
                 "Co-branded marketing &amp; social for your personal brand."] }
             ].map(c => `
@@ -281,12 +303,12 @@
       <div class="wrap">
         <div class="sec-head">
           <div><p class="kicker">The roster</p><h2>Meet the members</h2></div>
-          <p class="sec-sub">${K.members.length} brokers. ${cities.length} markets. One group chat you'll actually want to be in.</p>
+          <p class="sec-sub">${K.stats.members} brokers. ${K.stats.markets} high-growth markets. One group chat you'll actually want to be in.</p>
         </div>
         <div class="member-grid">
           ${K.members.map(m => `
             <a class="member" href="${m.linkedin}" target="_blank" rel="noopener">
-              <div class="m-photo"><img src="${photoUrl(m)}" alt="${esc(m.name)}" loading="lazy" /><span class="li-badge" aria-label="LinkedIn">in</span></div>
+              <div class="m-photo">${m.photo ? `<img src="${photoUrl(m)}" alt="${esc(m.name)}" loading="lazy" />` : `<span class="m-initials" aria-hidden="true">${initials(m.name)}</span>`}<span class="li-badge" aria-label="LinkedIn">in</span></div>
               <h3>${esc(m.name)}</h3>
               <p class="m-firm">${esc(m.firm)}</p>
               <p class="m-city">${esc(m.city)}</p>
@@ -299,16 +321,16 @@
       <div class="wrap">
         <div class="sec-head">
           <div><p class="kicker light">On the calendar</p><h2>Upcoming events</h2></div>
-          <p class="sec-sub">Quarterly meetups in member markets plus our signature RECON experience.</p>
+          <p class="sec-sub">Market updates, ICSC happy hours, market trips and our signature RECON experience.</p>
         </div>
         <div class="event-list">
           ${upcoming.length ? upcoming.map(e => `
             <article class="event teaser ${e.type === "Signature" ? "signature" : ""}">
-              <div class="e-date"><span>${fmtMonth(e.date)}</span><b>${fmtDay(e.date)}</b></div>
+              ${dateTile(e)}
               <div class="e-body">
                 <p class="e-type">${esc(e.type)}</p>
                 <h3>${esc(e.title)}</h3>
-                <p class="e-meta">${esc(e.city)}</p>
+                <p class="e-meta">${e.city === "Virtual" ? "Virtual · members only" : esc(e.city)}</p>
               </div>
               <span class="e-lock" aria-label="Details for members only"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg> Members only</span>
             </article>`).join("") : `<p class="empty">New dates coming soon.</p>`}
@@ -480,7 +502,13 @@
     $("#loginForm").addEventListener("submit", async e => {
       e.preventDefault();
       const f = new FormData(e.target);
-      if (!(await checkPasscode(f.get("name"), f.get("pass")))) { toast("That passcode didn't work."); return; }
+      const btn = e.target.querySelector("button");
+      btn.disabled = true; btn.textContent = "Checking…";
+      const groupKey = await unlockWithPasscode(f.get("name"), f.get("pass"));
+      btn.disabled = false; btn.textContent = "Sign in";
+      if (!groupKey) { toast("That passcode didn't work."); return; }
+      directory = null;
+      store.set("gk", toB64(groupKey));
       auth.signIn(f.get("name"));
       docState.folder = "all"; docState.q = "";
       toast(`Welcome back, ${f.get("name").split(" ")[0]} 👋`);
@@ -770,11 +798,11 @@
           const mine = r[me];
           const attendees = Object.keys(r).filter(n => r[n] === "going");
           return `<article class="p-event ${e.type === "Signature" ? "signature" : ""}">
-            <div class="e-date"><span>${fmtMonth(e.date)}</span><b>${fmtDay(e.date)}</b></div>
+            ${dateTile(e)}
             <div class="pe-body">
               <p class="e-type">${esc(e.type)}</p>
               <h3>${esc(e.title)}</h3>
-              <p class="e-meta">${fmtLong(e.date)} · ${esc(e.time)}<br/>${esc(e.venue)}, ${esc(e.city)}</p>
+              <p class="e-meta">${e.dayTbd ? `${parseDate(e.date).toLocaleDateString("en-US", { month: "long", year: "numeric" })}` : fmtLong(e.date)} · ${esc(e.time)}<br/>${esc(e.venue)}${e.city === "Virtual" ? "" : `, ${esc(e.city)}`}</p>
               <div class="attendees">
                 ${attendees.length ? `<div class="stack">${attendees.slice(0, 6).map(n => avatar(n, "xs")).join("")}</div><span>${attendees.length} going</span>` : `<span>Be the first to RSVP</span>`}
               </div>
@@ -782,7 +810,7 @@
                 <button class="${mine === "going" ? "on go" : ""}" data-r="going">✓ Going</button>
                 <button class="${mine === "maybe" ? "on" : ""}" data-r="maybe">Maybe</button>
                 <button class="${mine === "no" ? "on no" : ""}" data-r="no">Can't</button>
-                <button class="ics" data-ics="${e.id}" aria-label="Add to calendar">📅</button>
+                ${e.dayTbd ? "" : `<button class="ics" data-ics="${e.id}" aria-label="Add to calendar">📅</button>`}
               </div>
             </div>
           </article>`;
@@ -1094,7 +1122,7 @@
     const peopleList = () => others
       .filter(m => !q || (m.name + m.firm + m.city).toLowerCase().includes(q))
       .map(m => `<label class="pick"><input type="checkbox" value="${esc(m.name)}" ${picked.has(m.name) ? "checked" : ""} />
-        <img src="${photoUrl(m)}" alt="" /><span><b>${esc(m.name)}</b><small>${esc(m.firm)}</small></span><i></i></label>`).join("") || `<p class="empty">No one matches.</p>`;
+        ${photoOrInitials(m, "pick-av")}<span><b>${esc(m.name)}</b><small>${esc(m.firm)}</small></span><i></i></label>`).join("") || `<p class="empty">No one matches.</p>`;
 
     const draw = () => {
       sheet.innerHTML = `
@@ -1148,19 +1176,25 @@
   /* ----- people ----- */
   function renderPeople(q = "") {
     const list = K.members.filter(m => (m.name + m.firm + m.city).toLowerCase().includes(q.toLowerCase()));
+    const dir = directory;
     app.innerHTML = portalShell("people", `
       <input class="search" id="peopleSearch" placeholder="Search name, firm, or city" value="${esc(q)}" />
+      ${dir ? "" : `<div class="doc-notice">Contact info is locked on this device. Sign out and back in with your passcode to see member emails.</div>`}
       <div class="people">
-        ${list.map(m => `
-          <div class="person">
-            <img src="${photoUrl(m)}" alt="" loading="lazy" />
-            <div><b>${esc(m.name)}</b><span>${esc(m.firm)} · ${esc(m.city)}</span></div>
+        ${list.map(m => {
+          const email = dir && dir[m.name] ? dir[m.name].email : "";
+          return `<div class="person">
+            ${photoOrInitials(m, "person-av")}
+            <div><b>${esc(m.name)}</b><span>${esc(m.firm)} · ${esc(m.city)}</span>${email ? `<a class="p-email" href="mailto:${esc(email)}">${esc(email)}</a>` : ""}</div>
+            ${email ? `<a class="mail" href="mailto:${esc(email)}" aria-label="Email ${esc(m.name)}"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3.5 6.5 8.5 6.5 8.5-6.5"/></svg></a>` : ""}
             <a class="li" href="${m.linkedin}" target="_blank" rel="noopener" aria-label="${esc(m.name)} on LinkedIn">in</a>
-          </div>`).join("") || `<p class="empty">No one matches that.</p>`}
+          </div>`;
+        }).join("") || `<p class="empty">No one matches that.</p>`}
       </div>
     `);
     const s = $("#peopleSearch");
     s.addEventListener("input", () => { const pos = s.selectionStart; renderPeople(s.value); const n = $("#peopleSearch"); n.focus(); n.setSelectionRange(pos, pos); });
+    if (!dir) loadDirectory().then(d => { if (d && location.hash.startsWith("#/portal/people")) renderPeople($("#peopleSearch")?.value || q); });
   }
 
   /* ----- me ----- */
