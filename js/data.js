@@ -5,7 +5,7 @@
 window.KINETIC = {
   // Contact emails are NOT here: they're encrypted in directory.js and unlocked at sign-in.
   members: [
-    { name: "Abby Walsh", firm: "Franklin Street", city: "Jacksonville, FL", photo: "abby-walsh", linkedin: "https://www.linkedin.com/in/abby-walsh-9b7111a8/" },
+    { name: "Abby Walsh", firm: "Franklin Street", city: "Jacksonville, FL", photo: "abby-walsh-2026", linkedin: "https://www.linkedin.com/in/abby-walsh-9b7111a8/" },
     { name: "Lindsay Zegans", firm: "Ripco", city: "New York, NY", photo: "lindsay-zegans", linkedin: "https://www.linkedin.com/in/lindsayzegans/" },
     { name: "Harper Sigman", firm: "H&R Retail", city: "Washington, DC", photo: "harper-sigman", linkedin: "https://www.linkedin.com/in/harpersigman/" },
     { name: "Tanner Olson", firm: "Legend Commercial", city: "Salt Lake City, UT", photo: "tanner-olson", linkedin: "https://www.linkedin.com/in/tanner-olson-34b55583/" },
@@ -31,7 +31,7 @@ window.KINETIC = {
   ],
 
   // Headline numbers on the homepage (set by the Kinetic team).
-  stats: { members: 24, markets: 24, eventsPerYear: 4 },
+  stats: { members: 23, markets: 24, eventsPerYear: 4 },
 
   // Admins approve member photos before they appear in the homepage carousel.
   admins: ["Abby Walsh"],
