@@ -13,7 +13,7 @@ window.KINETIC = {
     { name: "Jacqueline Stone", firm: "Falcon", city: "Dallas, TX", photo: "jacqueline-stone", linkedin: "https://www.linkedin.com/in/jacquie-stone-b5531673/" },
     { name: "Alberto Caballero", firm: "Western Retail Advisors", city: "Phoenix, AZ", photo: "alberto-caballero-2026", linkedin: "https://www.linkedin.com/in/albertocaballerocre/" },
     { name: "Scott Benson", firm: "Metro Commercial", city: "Philadelphia, PA", photo: "scott-benson", linkedin: "https://www.linkedin.com/in/scott-benson-b2041538/" },
-    { name: "Logan Schenk", firm: "The Zall Companies", city: "Denver, CO", photo: "logan-schenk", linkedin: "https://www.linkedin.com/in/logan-schenk/" },
+    { name: "Logan Schenk", firm: "The Zall Companies", city: "Denver, CO", photo: "logan-schenk-2026", linkedin: "https://www.linkedin.com/in/logan-schenk/" },
     { name: "Patrick Conly", firm: "Boston Urban Partners", city: "Boston, MA", photo: "patrick-conly", linkedin: "https://www.linkedin.com/in/patrickconly/" },
     { name: "John Bassi", firm: "Canvas Real Estate", city: "Chicago, IL", photo: "john-bassi", linkedin: "https://www.linkedin.com/in/john-bassi-521138a0/" },
     { name: "Marc Huberman", firm: "Odyssey Retail Advisors", city: "Los Angeles, CA", photo: "marc-huberman-2026", linkedin: "https://www.linkedin.com/in/marc-huberman-3bb57642/" },
