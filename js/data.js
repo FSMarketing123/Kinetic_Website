@@ -6,12 +6,12 @@ window.KINETIC = {
   // Contact emails are NOT here: they're encrypted in directory.js and unlocked at sign-in.
   members: [
     { name: "Abby Walsh", firm: "Franklin Street", city: "Jacksonville, FL", photo: "abby-walsh-2026b", linkedin: "https://www.linkedin.com/in/abby-walsh-9b7111a8/" },
-    { name: "Lindsay Zegans", firm: "Ripco", city: "New York, NY", photo: "lindsay-zegans", linkedin: "https://www.linkedin.com/in/lindsayzegans/" },
+    { name: "Lindsay Zegans", firm: "Ripco", city: "New York, NY", photo: "lindsay-zegans-2026", linkedin: "https://www.linkedin.com/in/lindsayzegans/" },
     { name: "Harper Sigman", firm: "H&R Retail", city: "Washington, DC", photo: "harper-sigman-2026", linkedin: "https://www.linkedin.com/in/harpersigman/" },
     { name: "Tanner Olson", firm: "Legend Commercial", city: "Salt Lake City, UT", photo: "tanner-olson-2026", linkedin: "https://www.linkedin.com/in/tanner-olson-34b55583/" },
     { name: "Sam Singer", firm: "Vertical Real Estate", city: "Miami, FL", photo: "sam-singer", linkedin: "https://www.linkedin.com/in/sam-singer-a67b9ba3/" },
     { name: "Jacqueline Stone", firm: "Falcon", city: "Dallas, TX", photo: "jacqueline-stone", linkedin: "https://www.linkedin.com/in/jacquie-stone-b5531673/" },
-    { name: "Alberto Caballero", firm: "Western Retail Advisors", city: "Phoenix, AZ", photo: "alberto-caballero", linkedin: "https://www.linkedin.com/in/albertocaballerocre/" },
+    { name: "Alberto Caballero", firm: "Western Retail Advisors", city: "Phoenix, AZ", photo: "alberto-caballero-2026", linkedin: "https://www.linkedin.com/in/albertocaballerocre/" },
     { name: "Scott Benson", firm: "Metro Commercial", city: "Philadelphia, PA", photo: "scott-benson", linkedin: "https://www.linkedin.com/in/scott-benson-b2041538/" },
     { name: "Logan Schenk", firm: "The Zall Companies", city: "Denver, CO", photo: "logan-schenk", linkedin: "https://www.linkedin.com/in/logan-schenk/" },
     { name: "Patrick Conly", firm: "Boston Urban Partners", city: "Boston, MA", photo: "patrick-conly", linkedin: "https://www.linkedin.com/in/patrickconly/" },
